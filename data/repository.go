@@ -66,7 +66,7 @@ func (r *ListingRepository) GetListingPriceDiffs(startDate, endDate time.Time, l
 	ON curr.card_id = start.card_id
 	JOIN cards c ON curr.card_id = c.id
 	WHERE c.finish = 'nonfoil'
-  AND c.alt_style IS NULL
+  AND c.alt_style = ''
 	ORDER BY price_diff ` + order + `
 	LIMIT ?;
 	`
