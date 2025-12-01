@@ -31,7 +31,7 @@ type ListingWithDiff struct {
 	CardID          	int64   `json:"card_id"`
 	CurrPrice        	float64 `json:"curr_price"`
 	StartPrice      	float64 `json:"start_price"`
-	PriceDiff 				float64 `json:"price_diff"`
+	PriceDiffPct 			float64 `json:"price_diff_pct"`
 	Name        			string  `json:"name"`
 	CollectorNum  		string  `json:"collector_num"`
 	Finish						string	`json:"finish"`
@@ -44,15 +44,15 @@ func (r *ListingRepository) GetListingPriceDiffs(startDate, endDate time.Time, l
 		order = "desc"
 	}
 
-	var results []ListingWithDiff
+	results := make([]ListingWithDiff, limit)
 
 	query := `
 	SELECT 
 		curr.listing_id,
 		curr.card_id,
-		curr.price AS curr_price,
-		start.price AS start_price,
-		(curr.price - start.price) AS price_diff,
+		ROUND(curr.price, 2) AS curr_price,
+		ROUND(start.price, 2) AS start_price,
+		ROUND(((curr.price - start.price) / NULLIF(start.price, 0)) * 100, 0) AS price_diff_pct,
 		c.name,
 		c.collector_num,
 		c.finish,
@@ -67,7 +67,7 @@ func (r *ListingRepository) GetListingPriceDiffs(startDate, endDate time.Time, l
 	JOIN cards c ON curr.card_id = c.id
 	WHERE c.finish = 'nonfoil'
   AND c.alt_style = ''
-	ORDER BY price_diff ` + order + `
+	ORDER BY price_diff_pct ` + order + `
 	LIMIT ?;
 	`
 
