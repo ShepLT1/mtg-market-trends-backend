@@ -40,7 +40,6 @@ func GetPriceDiffsHandler(listingRepo *data.ListingRepository) http.HandlerFunc 
 			}
 		}
 
-		// Call repository
 		results, err := listingRepo.GetListingPriceDiffs(startDate, endDate, limit, order)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -49,5 +48,6 @@ func GetPriceDiffsHandler(listingRepo *data.ListingRepository) http.HandlerFunc 
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(results)
+
 	}
 }

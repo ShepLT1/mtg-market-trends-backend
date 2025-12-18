@@ -8,10 +8,8 @@ import (
 	"backend/data"
 )
 
-// GetPriceDiffsHandler returns a handler function with the repository injected
 func GetCards(cardRepo *data.CardRepository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Parse query parameters
 		page := 1
 		limit := 50
 		if p := r.URL.Query().Get("page"); p != "" {

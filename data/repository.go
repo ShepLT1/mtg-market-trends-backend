@@ -2,6 +2,7 @@ package data
 
 import (
 	"time"
+	"fmt"
 
 	"gorm.io/gorm"
 )
@@ -38,6 +39,15 @@ type ListingWithDiff struct {
 	ImageURI					string	`json:"image_uri"`
 }
 
+type CardWithPrice struct {
+	ID           int     `json:"id"`
+	Name         string  `json:"name"`
+	ImageURI     string  `json:"image_uri"`
+	CollectorNum string  `json:"collector_num"`
+	Finish       string  `json:"finish"`
+	CurrPrice    float64 `json:"curr_price"`
+}
+
 // GetListingPriceDiffs fetches listings for a given start/end date and returns top N by price difference
 func (r *ListingRepository) GetListingPriceDiffs(startDate, endDate time.Time, limit int, order string) ([]ListingWithDiff, error) {
 	if order != "asc" && order != "desc" {
@@ -46,34 +56,69 @@ func (r *ListingRepository) GetListingPriceDiffs(startDate, endDate time.Time, l
 
 	results := make([]ListingWithDiff, limit)
 
-	query := `
-	SELECT 
-		curr.listing_id,
-		curr.card_id,
-		ROUND(curr.price, 2) AS curr_price,
-		ROUND(start.price, 2) AS start_price,
-		ROUND(((curr.price - start.price) / NULLIF(start.price, 0)) * 100, 0) AS price_diff_pct,
-		c.name,
-		c.collector_num,
-		c.finish,
-		c.image_uri
-	FROM 
-		(SELECT DISTINCT ON (card_id) id AS listing_id, card_id, price FROM listings WHERE created_date = ? ORDER BY card_id, created_at DESC
-		) curr
-	JOIN 
-		(SELECT DISTINCT ON (card_id) card_id, price FROM listings WHERE created_date = ? ORDER BY card_id, created_at ASC
-		) start
-	ON curr.card_id = start.card_id
-	JOIN cards c ON curr.card_id = c.id
-	WHERE c.finish = 'nonfoil'
-  AND c.alt_style = ''
+	query := `WITH start_min AS (
+		SELECT
+			c.name,
+			MIN(l.price) AS start_price
+		FROM listings l
+		JOIN cards c ON l.card_id = c.id
+		WHERE l.created_date = ?
+			AND c.finish = 'nonfoil'
+			AND c.alt_style = ''
+		GROUP BY c.name
+	),
+	current_min AS (
+		SELECT
+			c.name,
+			MIN(l.price) AS curr_price
+		FROM listings l
+		JOIN cards c ON l.card_id = c.id
+		WHERE l.created_date = ?
+			AND c.finish = 'nonfoil'
+			AND c.alt_style = ''
+		GROUP BY c.name
+	),
+	current_cheapest_printing AS (
+		SELECT DISTINCT ON (c.name)
+			l.id AS listing_id,
+			l.card_id,
+			c.name,
+			l.price,
+			c.collector_num,
+			c.finish,
+			c.image_uri
+		FROM listings l
+		JOIN cards c ON l.card_id = c.id
+		WHERE l.created_date = ?
+			AND c.finish = 'nonfoil'
+			AND c.alt_style = ''
+		ORDER BY c.name, l.price ASC, l.created_at DESC
+	)
+	SELECT
+		cp.listing_id,
+		cp.card_id,
+		cp.name,
+		ROUND(cm.curr_price, 2) AS curr_price,
+		ROUND(sm.start_price, 2) AS start_price,
+		ROUND(
+			((cm.curr_price - sm.start_price) / NULLIF(sm.start_price, 0)) * 100,
+			0
+		) AS price_diff_pct,
+		cp.collector_num,
+		cp.finish,
+		cp.image_uri
+	FROM start_min sm
+	JOIN current_min cm
+		ON sm.name = cm.name
+	JOIN current_cheapest_printing cp
+		ON cp.name = sm.name
 	ORDER BY price_diff_pct ` + order + `
-	LIMIT ?;
-	`
+	LIMIT ?;`
 
 	err := r.DB.Raw(
 		query,
 		startDate.Format("2006-01-02"),
+		endDate.Format("2006-01-02"),
 		endDate.Format("2006-01-02"),
 		limit,
 	).Scan(&results).Error
@@ -85,21 +130,35 @@ func (r *ListingRepository) GetListingPriceDiffs(startDate, endDate time.Time, l
 	return results, nil
 }
 
-// GetCards returns cards optionally filtered by exact name, with pagination
-func (r *CardRepository) GetCards(name string, page, limit int) ([]Card, error) {
-	var cards []Card
+func (r *CardRepository) GetCards(name string, page, limit int) ([]CardWithPrice, error) {
+	var cards []CardWithPrice
 	offset := (page - 1) * limit
 
-	dbQuery := r.DB.Model(&Card{})
+	query := `
+        SELECT 
+            c.id,
+            c.name,
+            c.image_uri,
+            c.collector_num,
+            c.finish,
+            (
+                SELECT l.price 
+                FROM listings l 
+                WHERE l.card_id = c.id 
+                ORDER BY l.created_at DESC 
+                LIMIT 1
+            ) AS curr_price
+        FROM cards c
+        WHERE c.name ILIKE ?
+        ORDER BY curr_price DESC
+        LIMIT ? OFFSET ?;
+    `
 
-	if name != "" {
-		dbQuery = dbQuery.Where("name = ?", name)
-	}
-
-	result := dbQuery.Limit(limit).Offset(offset).Find(&cards)
-	if result.Error != nil {
-		return nil, result.Error
+	err := r.DB.Raw(query, "%"+name+"%", limit, offset).Scan(&cards).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch cards: %w", err)
 	}
 
 	return cards, nil
 }
+
