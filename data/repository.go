@@ -57,61 +57,62 @@ func (r *ListingRepository) GetListingPriceDiffs(startDate, endDate time.Time, l
 	results := make([]ListingWithDiff, limit)
 
 	query := `WITH start_min AS (
-		SELECT
-			c.name,
-			MIN(l.price) AS start_price
-		FROM listings l
-		JOIN cards c ON l.card_id = c.id
-		WHERE l.created_date = ?
-			AND c.finish = 'nonfoil'
-			AND c.alt_style = ''
-		GROUP BY c.name
+    SELECT
+        c.name,
+        MIN(l.price) AS start_price
+    FROM listings l
+    JOIN cards c ON l.card_id = c.id
+    WHERE l.created_date = ?
+        AND c.finish = 'nonfoil'
+        AND c.alt_style = ''
+    GROUP BY c.name
 	),
 	current_min AS (
-		SELECT
-			c.name,
-			MIN(l.price) AS curr_price
-		FROM listings l
-		JOIN cards c ON l.card_id = c.id
-		WHERE l.created_date = ?
-			AND c.finish = 'nonfoil'
-			AND c.alt_style = ''
-		GROUP BY c.name
+			SELECT
+					c.name,
+					MIN(l.price) AS curr_price
+			FROM listings l
+			JOIN cards c ON l.card_id = c.id
+			WHERE l.created_date = ?
+					AND c.finish = 'nonfoil'
+					AND c.alt_style = ''
+			GROUP BY c.name
 	),
 	current_cheapest_printing AS (
-		SELECT DISTINCT ON (c.name)
-			l.id AS listing_id,
-			l.card_id,
-			c.name,
-			l.price,
-			c.collector_num,
-			c.finish,
-			c.image_uri
-		FROM listings l
-		JOIN cards c ON l.card_id = c.id
-		WHERE l.created_date = ?
-			AND c.finish = 'nonfoil'
-			AND c.alt_style = ''
-		ORDER BY c.name, l.price ASC, l.created_at DESC
+			SELECT DISTINCT ON (c.name)
+					l.id AS listing_id,
+					l.card_id,
+					c.name,
+					l.price,
+					c.collector_num,
+					c.finish,
+					c.image_uri
+			FROM listings l
+			JOIN cards c ON l.card_id = c.id
+			WHERE l.created_date = ?
+					AND c.finish = 'nonfoil'
+					AND c.alt_style = ''
+			ORDER BY c.name, l.price ASC, l.created_at DESC
 	)
 	SELECT
-		cp.listing_id,
-		cp.card_id,
-		cp.name,
-		ROUND(cm.curr_price, 2) AS curr_price,
-		ROUND(sm.start_price, 2) AS start_price,
-		ROUND(
-			((cm.curr_price - sm.start_price) / NULLIF(sm.start_price, 0)) * 100,
-			0
-		) AS price_diff_pct,
-		cp.collector_num,
-		cp.finish,
-		cp.image_uri
+			cp.listing_id,
+			cp.card_id,
+			cp.name,
+			ROUND(cm.curr_price, 2) AS curr_price,
+			ROUND(sm.start_price, 2) AS start_price,
+			ROUND(
+					((cm.curr_price - sm.start_price) / NULLIF(sm.start_price, 0)) * 100,
+					0
+			) AS price_diff_pct,
+			cp.collector_num,
+			cp.finish,
+			cp.image_uri
 	FROM start_min sm
 	JOIN current_min cm
-		ON sm.name = cm.name
+			ON sm.name = cm.name
 	JOIN current_cheapest_printing cp
-		ON cp.name = sm.name
+			ON cp.name = sm.name
+	WHERE (sm.start_price >= 0.5 OR cm.curr_price >= 0.5)
 	ORDER BY price_diff_pct ` + order + `
 	LIMIT ?;`
 
