@@ -56,65 +56,67 @@ func (r *ListingRepository) GetListingPriceDiffs(startDate, endDate time.Time, l
 
 	results := make([]ListingWithDiff, limit)
 
-	query := `WITH start_min AS (
-    SELECT
-        c.name,
-        MIN(l.price) AS start_price
-    FROM listings l
-    JOIN cards c ON l.card_id = c.id
-    WHERE l.created_date = ?
-        AND c.finish = 'nonfoil'
-        AND c.alt_style = ''
-    GROUP BY c.name
-	),
-	current_min AS (
+	query := `
+		WITH start_min AS (
 			SELECT
-					c.name,
-					MIN(l.price) AS curr_price
+				c.name,
+				MIN(l.price) AS start_price
 			FROM listings l
 			JOIN cards c ON l.card_id = c.id
 			WHERE l.created_date = ?
-					AND c.finish = 'nonfoil'
-					AND c.alt_style = ''
+				AND c.finish = 'nonfoil'
+				AND c.alt_style = ''
 			GROUP BY c.name
-	),
-	current_cheapest_printing AS (
-			SELECT DISTINCT ON (c.name)
-					l.id AS listing_id,
-					l.card_id,
-					c.name,
-					l.price,
-					c.collector_num,
-					c.finish,
-					c.image_uri
+		),
+		current_min AS (
+			SELECT
+				c.name,
+				MIN(l.price) AS curr_price
 			FROM listings l
 			JOIN cards c ON l.card_id = c.id
 			WHERE l.created_date = ?
-					AND c.finish = 'nonfoil'
-					AND c.alt_style = ''
+				AND c.finish = 'nonfoil'
+				AND c.alt_style = ''
+			GROUP BY c.name
+		),
+		current_cheapest_printing AS (
+			SELECT DISTINCT ON (c.name)
+				l.id AS listing_id,
+				l.card_id,
+				c.name,
+				l.price,
+				c.collector_num,
+				c.finish,
+				c.image_uri
+			FROM listings l
+			JOIN cards c ON l.card_id = c.id
+			WHERE l.created_date = ?
+				AND c.finish = 'nonfoil'
+				AND c.alt_style = ''
 			ORDER BY c.name, l.price ASC, l.created_at DESC
-	)
-	SELECT
+		)
+		SELECT
 			cp.listing_id,
 			cp.card_id,
 			cp.name,
 			ROUND(cm.curr_price, 2) AS curr_price,
 			ROUND(sm.start_price, 2) AS start_price,
 			ROUND(
-					((cm.curr_price - sm.start_price) / NULLIF(sm.start_price, 0)) * 100,
-					0
+				((cm.curr_price - sm.start_price) / NULLIF(sm.start_price, 0)) * 100,
+				0
 			) AS price_diff_pct,
 			cp.collector_num,
 			cp.finish,
 			cp.image_uri
-	FROM start_min sm
-	JOIN current_min cm
+		FROM start_min sm
+		JOIN current_min cm
 			ON sm.name = cm.name
-	JOIN current_cheapest_printing cp
+		JOIN current_cheapest_printing cp
 			ON cp.name = sm.name
-	WHERE (sm.start_price >= 0.5 OR cm.curr_price >= 0.5)
-	ORDER BY price_diff_pct ` + order + `
-	LIMIT ?;`
+		WHERE (sm.start_price >= 0.5 OR cm.curr_price >= 0.5)
+		ORDER BY price_diff_pct ` + order + `
+		LIMIT ?;
+	`
 
 	err := r.DB.Raw(
 		query,
@@ -136,24 +138,24 @@ func (r *CardRepository) GetCards(name string, page, limit int) ([]CardWithPrice
 	offset := (page - 1) * limit
 
 	query := `
-        SELECT 
-            c.id,
-            c.name,
-            c.image_uri,
-            c.collector_num,
-            c.finish,
-            (
-                SELECT l.price 
-                FROM listings l 
-                WHERE l.card_id = c.id 
-                ORDER BY l.created_at DESC 
-                LIMIT 1
-            ) AS curr_price
-        FROM cards c
-        WHERE c.name ILIKE ?
-        ORDER BY curr_price DESC
-        LIMIT ? OFFSET ?;
-    `
+		SELECT 
+			c.id,
+			c.name,
+			c.image_uri,
+			c.collector_num,
+			c.finish,
+			(
+				SELECT l.price 
+				FROM listings l 
+				WHERE l.card_id = c.id 
+				ORDER BY l.created_at DESC 
+				LIMIT 1
+			) AS curr_price
+		FROM cards c
+		WHERE c.name ILIKE ?
+		ORDER BY curr_price DESC
+		LIMIT ? OFFSET ?;
+	`
 
 	err := r.DB.Raw(query, "%"+name+"%", limit, offset).Scan(&cards).Error
 	if err != nil {
@@ -163,16 +165,23 @@ func (r *CardRepository) GetCards(name string, page, limit int) ([]CardWithPrice
 	return cards, nil
 }
 
-func (r *CardRepository) GetCardNames(name string, limit int) ([]Card, error) {
+func (r *CardRepository) GetCardsDistName(name string, limit int) ([]Card, error) {
 	var cards []Card
 
 	query := `
-			SELECT DISTINCT name
-			FROM cards
-			WHERE name ILIKE ?
-			ORDER BY name
-			LIMIT ?;
-    `
+		SELECT DISTINCT ON (name)
+			id,
+			name,
+			collector_number,
+			promo_type,
+			finish,
+			alt_style,
+			image_uri
+		FROM cards
+		WHERE name ILIKE ?
+		ORDER BY name, id;
+		LIMIT ?;
+	`
 
 	err := r.DB.Raw(query, "%"+name+"%", limit).Scan(&cards).Error
 	if err != nil {

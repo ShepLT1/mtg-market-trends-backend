@@ -51,7 +51,7 @@ func GetCardNames(cardRepo *data.CardRepository) http.HandlerFunc {
 		}
 		name := r.URL.Query().Get("name")
 
-		cards, err := cardRepo.GetCardNames(name, limit)
+		cards, err := cardRepo.GetCardsDistName(name, limit)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
