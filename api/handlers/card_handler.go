@@ -40,3 +40,29 @@ func GetCards(cardRepo *data.CardRepository) http.HandlerFunc {
 		json.NewEncoder(w).Encode(response)
 	}
 }
+
+func GetCardNames(cardRepo *data.CardRepository) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		limit := 20
+		if l := r.URL.Query().Get("limit"); l != "" {
+			if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 && parsed <= 500 {
+				limit = parsed
+			}
+		}
+		name := r.URL.Query().Get("name")
+
+		cards, err := cardRepo.GetCardNames(name, limit)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		response := map[string]interface{}{
+			"limit": limit,
+			"data":  cards,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	}
+}

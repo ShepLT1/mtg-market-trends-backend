@@ -163,3 +163,21 @@ func (r *CardRepository) GetCards(name string, page, limit int) ([]CardWithPrice
 	return cards, nil
 }
 
+func (r *CardRepository) GetCardNames(name string, limit int) ([]Card, error) {
+	var cards []Card
+
+	query := `
+			SELECT DISTINCT name
+			FROM cards
+			WHERE name ILIKE ?
+			ORDER BY name
+			LIMIT ?;
+    `
+
+	err := r.DB.Raw(query, "%"+name+"%", limit).Scan(&cards).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch cards: %w", err)
+	}
+
+	return cards, nil
+}

@@ -12,6 +12,7 @@ func NewRouter(cardRepo *data.CardRepository, listingRepo *data.ListingRepositor
 	r := mux.NewRouter()
 
 	r.HandleFunc("/api/cards", handlers.GetCards(cardRepo)).Methods("GET")
+	r.HandleFunc("/api/cards/names", handlers.GetCardNames(cardRepo)).Methods("GET")
 	r.HandleFunc("/api/listings", handlers.GetPriceDiffsHandler(listingRepo)).Methods("GET")
 
 	return r
