@@ -12,7 +12,7 @@ type Set struct {
 type Card struct {
 	ID            int64     `gorm:"primaryKey;autoIncrement" json:"id"`
 	Name          string    `json:"name"`
-	SetID        	int64  		`gorm:"uniqueIndex:idx_card_identity" json:"set"`
+	SetID        	int64  		`gorm:"uniqueIndex:idx_card_identity" json:"set_id"`
 	CollectorNum 	string 		`gorm:"uniqueIndex:idx_card_identity" json:"collector_number"`
 	PromoType    	string 		`gorm:"uniqueIndex:idx_card_identity" json:"promo_type"`
 	Finish       	string 		`gorm:"uniqueIndex:idx_card_identity" json:"finish"`

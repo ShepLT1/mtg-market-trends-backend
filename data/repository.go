@@ -42,9 +42,12 @@ type ListingWithDiff struct {
 type CardWithPrice struct {
 	ID           int     `json:"id"`
 	Name         string  `json:"name"`
+	SetID				 int		 `json:"set_id"`
 	ImageURI     string  `json:"image_uri"`
 	CollectorNum string  `json:"collector_num"`
 	Finish       string  `json:"finish"`
+	PromoType    string  `json:"promo_type"`
+	AltStyle		 string	 `json:"alt_style"`
 	CurrPrice    float64 `json:"curr_price"`
 }
 
@@ -141,9 +144,12 @@ func (r *CardRepository) GetCards(name string, page, limit int) ([]CardWithPrice
 		SELECT 
 			c.id,
 			c.name,
+			c.set_id,
 			c.image_uri,
 			c.collector_num,
 			c.finish,
+			c.promo_type,
+			c.alt_style,
 			(
 				SELECT l.price 
 				FROM listings l 
@@ -172,14 +178,15 @@ func (r *CardRepository) GetCardsDistName(name string, limit int) ([]Card, error
 		SELECT DISTINCT ON (name)
 			id,
 			name,
-			collector_number,
+			set_id,
+			collector_num,
 			promo_type,
 			finish,
 			alt_style,
 			image_uri
 		FROM cards
 		WHERE name ILIKE ?
-		ORDER BY name, id;
+		ORDER BY name, id
 		LIMIT ?;
 	`
 
